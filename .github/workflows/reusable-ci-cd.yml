@@ -46,7 +46,6 @@ jobs:
         uses: semgrep/semgrep-action@v1
         with:
           config: p/r2c-security-audit
-          auditOnInvalidConfig: true
 
   build-and-scan:
     needs: lint-and-test
