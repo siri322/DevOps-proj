@@ -1,0 +1,103 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prod-booking-service
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/my-org/DevOps_project.git'
+    targetRevision: HEAD
+    path: helm/charts/microservice
+    helm:
+      valueFiles:
+        - ../../environments/prod-values.yaml
+      parameters:
+        - name: image.repository
+          value: ghcr.io/your-github-username/booking-service
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: prod
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    createNamespace: true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prod-payment-service
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/my-org/DevOps_project.git'
+    targetRevision: HEAD
+    path: helm/charts/microservice
+    helm:
+      valueFiles:
+        - ../../environments/prod-values.yaml
+      parameters:
+        - name: image.repository
+          value: ghcr.io/your-github-username/payment
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: prod
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    createNamespace: true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prod-driver-app
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/my-org/DevOps_project.git'
+    targetRevision: HEAD
+    path: helm/charts/microservice
+    helm:
+      valueFiles:
+        - ../../environments/prod-values.yaml
+      parameters:
+        - name: image.repository
+          value: ghcr.io/your-github-username/driver-app
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: prod
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    createNamespace: true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prod-consumer-app
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/my-org/DevOps_project.git'
+    targetRevision: HEAD
+    path: helm/charts/microservice
+    helm:
+      valueFiles:
+        - ../../environments/prod-values.yaml
+      parameters:
+        - name: image.repository
+          value: ghcr.io/your-github-username/consumer-app
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: prod
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    createNamespace: true

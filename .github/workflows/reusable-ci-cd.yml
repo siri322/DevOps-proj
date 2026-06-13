@@ -1,0 +1,162 @@
+name: Reusable CI/CD Pipeline
+
+on:
+  workflow_call:
+    inputs:
+      service-name:
+        required: true
+        type: string
+      environment:
+        required: true
+        type: string
+      image-name:
+        required: true
+        type: string
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: src/${{ inputs.service-name }}/package-lock.json
+
+      - name: Install Dependencies
+        run: |
+          cd src/${{ inputs.service-name }}
+          npm ci
+
+      - name: Run Lint
+        run: |
+          cd src/${{ inputs.service-name }}
+          npm run lint
+
+      - name: Run Unit Tests
+        run: |
+          cd src/${{ inputs.service-name }}
+          npm run test
+
+      - name: Run SAST Scan (Semgrep)
+        uses: semgrep/semgrep-action@v1
+        with:
+          config: p/r2c-security-audit
+          auditOnInvalidConfig: true
+
+  build-and-scan:
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Local Image for Scanning
+        uses: docker/build-push-action@v5
+        with:
+          context: src/${{ inputs.service-name }}
+          load: true
+          tags: ${{ inputs.image-name }}:scan-${{ github.sha }}
+
+      - name: Run Trivy Vulnerability Scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ inputs.image-name }}:scan-${{ github.sha }}'
+          format: 'table'
+          exit-code: '1' # Fail the build on CRITICAL vulnerabilities
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Set lower case owner name
+        run: |
+          echo "OWNER_LC=${OWNER,,}" >> ${GITHUB_ENV}
+        env:
+          OWNER: '${{ github.repository_owner }}'
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push to GHCR
+        uses: docker/build-push-action@v5
+        with:
+          context: src/${{ inputs.service-name }}
+          push: true
+          tags: |
+            ghcr.io/${{ env.OWNER_LC }}/${{ inputs.image-name }}:${{ inputs.environment }}-${{ github.sha }}
+            ghcr.io/${{ env.OWNER_LC }}/${{ inputs.image-name }}:${{ inputs.environment }}-latest
+
+  dast-scan:
+    needs: build-and-scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set lower case owner name
+        run: |
+          echo "OWNER_LC=${OWNER,,}" >> ${GITHUB_ENV}
+        env:
+          OWNER: '${{ github.repository_owner }}'
+
+      # Mock/run the app inside a container to expose endpoints for OWASP ZAP DAST scan
+      - name: Run App Container
+        run: |
+          docker run -d --name test-app -p 3000:3000 \
+            -e PORT=3000 -e NODE_ENV=test \
+            ghcr.io/${{ env.OWNER_LC }}/${{ inputs.image-name }}:${{ inputs.environment }}-${{ github.sha }}
+          sleep 5 # Wait for app to startup
+          curl -I http://localhost:3000/healthz
+
+      - name: OWASP ZAP DAST Scan
+        uses: zaproxy/action-baseline@v0.12.0
+        with:
+          token: ${{ github.token }}
+          target: 'http://localhost:3000/'
+          rules_file_name: '.zap/rules.tsv'
+          allow_issue_writing: false
+          fail_action: false # Keep false to avoid breaking the build on basic warnings, but flags them in Actions summary
+
+      - name: Stop App Container
+        if: always()
+        run: docker stop test-app && docker rm test-app
+
+  gitops-deploy:
+    needs: dast-scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update Helm Image Tag for GitOps
+        run: |
+          # GitOps workflow: Update the default image tag in values or environment-specific values yaml
+          # Using sed to update values file
+          ENV_FILE="helm/environments/${{ inputs.environment }}-values.yaml"
+          if [ -f "$ENV_FILE" ]; then
+            echo "Updating image tag to ${{ inputs.environment }}-${{ github.sha }} in $ENV_FILE"
+            # Update the environment values file or deployment parameter if gitops is configured to poll this file
+            # In a live setup, we commit this back to Git to trigger Argo CD sync
+            # Note: For security and loop prevention, we might commit this back using a CI bot token
+            # Git configuration
+            git config --global user.name "Github Actions GitOps Bot"
+            git config --global user.email "gitops-bot@mycompany.com"
+            
+            # Simple simulation: we log the deployment tag update
+            echo "DEPLOY_TAG=${{ inputs.environment }}-${{ github.sha }}" >> deployment.log
+          else
+            echo "Environment config $ENV_FILE not found, skipping tag update"
+          fi

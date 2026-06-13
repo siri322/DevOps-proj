@@ -1,0 +1,14 @@
+# Checkov configuration file for scanning Terraform templates
+directory:
+  - terraform
+quiet: false
+soft-fail: true # In development we soft-fail to review issues without completely blocking the developer, change to false for hard gate
+framework:
+  - terraform
+output: cli
+# Suppress checks that are expected to fail in a demo environment
+# CKV_AZURE_4: Ensure AKS cluster is not configured with local accounts (using AAD and RBAC is good, but for local testing local credentials might be used)
+# CKV_AZURE_115: Ensure AKS has resource/cpu limits configured in default pool (defined by Kubernetes scheduler, can skip for cluster provisioning)
+skip-check:
+  - CKV_AZURE_4
+  - CKV_AZURE_115
