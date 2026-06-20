@@ -17,6 +17,23 @@ on:
         required: false
         type: boolean
         default: false
+    secrets:
+      AZURE_CLIENT_ID:
+        required: false
+      AZURE_TENANT_ID:
+        required: false
+      AZURE_SUBSCRIPTION_ID:
+        required: false
+      ACR_NAME:
+        required: false
+      ACR_LOGIN_SERVER:
+        required: false
+      SNYK_TOKEN:
+        required: false
+      ARGOCD_SERVER:
+        required: false
+      ARGOCD_AUTH_TOKEN:
+        required: false
   workflow_dispatch:
     inputs:
       environment:
@@ -37,23 +54,6 @@ on:
         required: false
         type: boolean
         default: false
-    secrets:
-      AZURE_CLIENT_ID:
-        required: false
-      AZURE_TENANT_ID:
-        required: false
-      AZURE_SUBSCRIPTION_ID:
-        required: false
-      ACR_NAME:
-        required: false
-      ACR_LOGIN_SERVER:
-        required: false
-      SNYK_TOKEN:
-        required: false
-      ARGOCD_SERVER:
-        required: false
-      ARGOCD_AUTH_TOKEN:
-        required: false
 
 permissions:
   contents: read
