@@ -1,0 +1,20 @@
+{{- if .Values.serviceMonitor.enabled }}
+{{- range $key, $service := .Values.services }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ $service.name }}
+  labels:
+    {{- include "mobility-platform.labels" $ | nindent 4 }}
+    app.kubernetes.io/name: {{ $service.name }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $service.name }}
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: {{ $.Values.serviceMonitor.interval }}
+---
+{{- end }}
+{{- end }}

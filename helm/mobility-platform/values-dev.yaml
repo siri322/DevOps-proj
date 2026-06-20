@@ -1,0 +1,17 @@
+global:
+  environment: dev
+  imageRegistry: myacr.azurecr.io
+  imageTag: latest
+
+ingress:
+  host: dev.mobility.example.com
+
+services:
+  payment:
+    replicas: 1
+  consumer-app:
+    replicas: 1
+  driver-app:
+    replicas: 1
+  booking-service:
+    replicas: 1

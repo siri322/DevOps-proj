@@ -1,0 +1,18 @@
+{{- range $key, $service := .Values.services }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $service.name }}
+  labels:
+    {{- include "mobility-platform.labels" $ | nindent 4 }}
+    app.kubernetes.io/name: {{ $service.name }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: {{ $service.name }}
+  ports:
+    - name: http
+      port: 80
+      targetPort: {{ $service.port }}
+---
+{{- end }}

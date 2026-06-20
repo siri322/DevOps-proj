@@ -1,0 +1,65 @@
+global:
+  environment: dev
+  imageRegistry: myacr.azurecr.io
+  imageTag: latest
+  imagePullPolicy: IfNotPresent
+
+services:
+  payment:
+    name: payment
+    port: 3001
+    replicas: 2
+    pathPrefix: /payment
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+  consumer-app:
+    name: consumer-app
+    port: 3002
+    replicas: 2
+    pathPrefix: /consumer
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+  driver-app:
+    name: driver-app
+    port: 3003
+    replicas: 2
+    pathPrefix: /driver
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+  booking-service:
+    name: booking-service
+    port: 3004
+    replicas: 2
+    pathPrefix: /booking
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+ingress:
+  enabled: true
+  className: nginx
+  host: dev.mobility.example.com
+  tlsSecretName: mobility-platform-tls
+
+serviceMonitor:
+  enabled: true
+  interval: 30s

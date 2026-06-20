@@ -1,0 +1,15 @@
+name: Dev
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  pipeline:
+    uses: ./.github/workflows/reusable-ci-cd.yml
+    with:
+      environment: dev
+      deploy: true
+    secrets: inherit

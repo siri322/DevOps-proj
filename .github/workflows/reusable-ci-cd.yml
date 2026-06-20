@@ -1,0 +1,220 @@
+name: Reusable CI/CD
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: "Deployment environment: dev, uat, or prod"
+        required: true
+        type: string
+      image_tag:
+        description: "Image tag to publish"
+        required: false
+        type: string
+        default: ${{ github.sha }}
+      deploy:
+        description: "Deploy through Argo CD after images are published"
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      AZURE_CLIENT_ID:
+        required: true
+      AZURE_TENANT_ID:
+        required: true
+      AZURE_SUBSCRIPTION_ID:
+        required: true
+      ACR_NAME:
+        required: true
+      ACR_LOGIN_SERVER:
+        required: true
+      SNYK_TOKEN:
+        required: false
+      ARGOCD_SERVER:
+        required: false
+      ARGOCD_AUTH_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+  id-token: write
+  security-events: write
+
+env:
+  NODE_VERSION: "20"
+  SERVICES: "payment consumer-app driver-app booking-service"
+
+jobs:
+  validate:
+    name: Lint, Unit, App Tests, SAST
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Application tests
+        run: npm run test:app
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript
+
+      - name: CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+
+      - name: Snyk dependency scan
+        if: ${{ env.SNYK_TOKEN != '' }}
+        uses: snyk/actions/node@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ env.SNYK_TOKEN }}
+        with:
+          command: test
+
+  terraform-security:
+    name: Terraform Security
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform fmt
+        run: terraform fmt -check -recursive terraform
+
+      - name: Checkov scan
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: terraform
+          framework: terraform
+          quiet: true
+
+      - name: Snyk IaC scan
+        if: ${{ env.SNYK_TOKEN != '' }}
+        uses: snyk/actions/iac@master
+        continue-on-error: true
+        env:
+          SNYK_TOKEN: ${{ env.SNYK_TOKEN }}
+        with:
+          file: terraform
+
+  build-scan-push:
+    name: Build, Trivy Scan, Push
+    runs-on: ubuntu-latest
+    needs:
+      - validate
+    environment: ${{ inputs.environment }}
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - payment
+          - consumer-app
+          - driver-app
+          - booking-service
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: ACR login
+        run: az acr login --name "${{ secrets.ACR_NAME }}"
+
+      - name: Build image
+        run: |
+          docker build \
+            --file services/${{ matrix.service }}/Dockerfile \
+            --tag ${{ secrets.ACR_LOGIN_SERVER }}/mobility/${{ matrix.service }}:${{ inputs.image_tag }} \
+            .
+
+      - name: Trivy image scan
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: ${{ secrets.ACR_LOGIN_SERVER }}/mobility/${{ matrix.service }}:${{ inputs.image_tag }}
+          format: sarif
+          output: trivy-${{ matrix.service }}.sarif
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+
+      - name: Upload Trivy SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-${{ matrix.service }}.sarif
+
+      - name: Push image to ACR
+        run: docker push ${{ secrets.ACR_LOGIN_SERVER }}/mobility/${{ matrix.service }}:${{ inputs.image_tag }}
+
+  dast:
+    name: DAST Baseline
+    runs-on: ubuntu-latest
+    needs:
+      - deploy
+    if: ${{ inputs.deploy }}
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: ZAP baseline scan
+        uses: zaproxy/action-baseline@v0.12.0
+        with:
+          target: https://${{ inputs.environment }}.mobility.example.com
+          rules_file_name: .zap/rules.tsv
+          cmd_options: "-a"
+
+  deploy:
+    name: Argo CD Deploy
+    runs-on: ubuntu-latest
+    needs:
+      - terraform-security
+      - build-scan-push
+    if: ${{ inputs.deploy }}
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Argo CD CLI
+        run: |
+          curl -sSL -o argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          chmod +x argocd
+          sudo mv argocd /usr/local/bin/argocd
+
+      - name: Sync environment application
+        env:
+          ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
+          ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
+        run: |
+          argocd app sync mobility-platform-${{ inputs.environment }} --server "$ARGOCD_SERVER" --auth-token "$ARGOCD_AUTH_TOKEN" --grpc-web
+          argocd app wait mobility-platform-${{ inputs.environment }} --health --timeout 600 --server "$ARGOCD_SERVER" --auth-token "$ARGOCD_AUTH_TOKEN" --grpc-web

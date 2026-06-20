@@ -1,0 +1,35 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: mobility-platform-slo-alerts
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: mobility-platform.availability
+      rules:
+        - alert: MobilityServiceDown
+          expr: up{job=~"payment|consumer-app|driver-app|booking-service"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "A mobility service target is down"
+            description: "{{ $labels.job }} has not been scrapeable for 5 minutes."
+        - alert: MobilityHighHttpErrorRate
+          expr: sum(rate(http_requests_total{status=~"5.."}[5m])) by (service) / sum(rate(http_requests_total[5m])) by (service) > 0.05
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High 5xx rate for {{ $labels.service }}"
+            description: "{{ $labels.service }} has more than 5% server errors for 10 minutes."
+        - alert: MobilityPodCrashLooping
+          expr: rate(kube_pod_container_status_restarts_total{namespace=~"mobility-.*"}[15m]) > 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Pod restart rate is elevated"
+            description: "{{ $labels.namespace }}/{{ $labels.pod }} has restarted recently."

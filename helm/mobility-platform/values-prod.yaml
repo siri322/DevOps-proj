@@ -1,0 +1,17 @@
+global:
+  environment: prod
+  imageRegistry: myacr.azurecr.io
+  imageTag: latest
+
+ingress:
+  host: mobility.example.com
+
+services:
+  payment:
+    replicas: 3
+  consumer-app:
+    replicas: 3
+  driver-app:
+    replicas: 3
+  booking-service:
+    replicas: 3

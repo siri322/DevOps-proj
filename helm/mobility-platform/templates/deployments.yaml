@@ -1,0 +1,58 @@
+{{- range $key, $service := .Values.services }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $service.name }}
+  labels:
+    {{- include "mobility-platform.labels" $ | nindent 4 }}
+    app.kubernetes.io/name: {{ $service.name }}
+spec:
+  replicas: {{ $service.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $service.name }}
+  template:
+    metadata:
+      labels:
+        {{- include "mobility-platform.labels" $ | nindent 8 }}
+        app.kubernetes.io/name: {{ $service.name }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /metrics
+        prometheus.io/port: "{{ $service.port }}"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: {{ $service.name }}
+          image: "{{ $.Values.global.imageRegistry }}/mobility/{{ $service.name }}:{{ $.Values.global.imageTag }}"
+          imagePullPolicy: {{ $.Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: {{ $service.port }}
+          env:
+            - name: PORT
+              value: "{{ $service.port }}"
+            - name: ENVIRONMENT
+              value: {{ $.Values.global.environment | quote }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ $service.port }}
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: {{ $service.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml $service.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+---
+{{- end }}

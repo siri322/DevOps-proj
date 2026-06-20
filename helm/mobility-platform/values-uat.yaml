@@ -1,0 +1,17 @@
+global:
+  environment: uat
+  imageRegistry: myacr.azurecr.io
+  imageTag: latest
+
+ingress:
+  host: uat.mobility.example.com
+
+services:
+  payment:
+    replicas: 2
+  consumer-app:
+    replicas: 2
+  driver-app:
+    replicas: 2
+  booking-service:
+    replicas: 2

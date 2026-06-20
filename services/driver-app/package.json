@@ -1,0 +1,17 @@
+{
+  "name": "@mobility/driver-app",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "lint": "eslint src test",
+    "test": "jest --coverage",
+    "test:app": "jest --testPathPattern app.test.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "helmet": "^7.1.0",
+    "prom-client": "^15.1.3"
+  }
+}

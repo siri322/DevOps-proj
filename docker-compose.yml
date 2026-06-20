@@ -1,0 +1,38 @@
+services:
+  payment:
+    build:
+      context: .
+      dockerfile: services/payment/Dockerfile
+    ports:
+      - "3001:3001"
+  consumer-app:
+    build:
+      context: .
+      dockerfile: services/consumer-app/Dockerfile
+    ports:
+      - "3002:3002"
+  driver-app:
+    build:
+      context: .
+      dockerfile: services/driver-app/Dockerfile
+    ports:
+      - "3003:3003"
+  booking-service:
+    build:
+      context: .
+      dockerfile: services/booking-service/Dockerfile
+    ports:
+      - "3004:3004"
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+    volumes:
+      - ./observability/prometheus-local.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      - payment
+      - consumer-app
+      - driver-app
+      - booking-service
