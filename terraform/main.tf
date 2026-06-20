@@ -58,12 +58,12 @@ resource "azurerm_kubernetes_cluster" "aks" {
   kubernetes_version  = var.kubernetes_version
 
   default_node_pool {
-    name           = "default"
-    node_count     = var.node_count
-    vm_size        = var.vm_size
-    vnet_subnet_id = azurerm_subnet.aks_subnet.id
+    name            = "default"
+    node_count      = var.node_count
+    vm_size         = var.vm_size
+    vnet_subnet_id  = azurerm_subnet.aks_subnet.id
     os_disk_size_gb = 30
-    
+
     # Enable Auto-scaling option (standard in UAT/Prod)
     enable_auto_scaling = var.environment == "dev" ? false : true
     min_count           = var.environment == "dev" ? null : 2
