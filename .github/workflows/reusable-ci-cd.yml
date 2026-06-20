@@ -17,6 +17,26 @@ on:
         required: false
         type: boolean
         default: false
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Deployment environment"
+        required: true
+        type: choice
+        options:
+          - dev
+          - uat
+          - prod
+      image_tag:
+        description: "Image tag to publish (default: manual)"
+        required: false
+        type: string
+        default: "manual"
+      deploy:
+        description: "Deploy through Argo CD after images are published"
+        required: false
+        type: boolean
+        default: false
     secrets:
       AZURE_CLIENT_ID:
         required: false
