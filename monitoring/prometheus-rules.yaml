@@ -1,0 +1,54 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: microservice-alert-rules
+  labels:
+    role: alert-rules
+    release: prometheus
+spec:
+  groups:
+    - name: microservices.rules
+      rules:
+        # 1. Alert on High HTTP 5xx Error Rate
+        - alert: MicroserviceHigh5xxRate
+          expr: sum(rate(http_requests_total{status=~"5.."}[2m])) by (app) / sum(rate(http_requests_total[2m])) by (app) * 100 > 5
+          for: 1m
+          labels:
+            severity: critical
+            tier: api
+          annotations:
+            summary: "High HTTP 5xx error rate on service '{{ $labels.app }}'"
+            description: "Service '{{ $labels.app }}' is returning more than 5% HTTP 5xx responses for the last 2 minutes."
+
+        # 2. Alert on High Latency (P95 > 2s)
+        - alert: MicroserviceHighLatencyP95
+          expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, app)) > 2.0
+          for: 2m
+          labels:
+            severity: warning
+            tier: api
+          annotations:
+            summary: "High P95 latency on service '{{ $labels.app }}'"
+            description: "95% of requests to service '{{ $labels.app }}' take longer than 2.0 seconds to respond over the last 5 minutes."
+
+        # 3. Alert on Pod Memory Pressure (Impending OOMKilled)
+        - alert: ContainerMemoryLeakWarning
+          expr: container_memory_working_set_bytes{container!=""} / on(pod) name:container_spec_memory_limit_bytes{container!=""} * 100 > 90
+          for: 3m
+          labels:
+            severity: warning
+            tier: infra
+          annotations:
+            summary: "Container '{{ $labels.container }}' in pod '{{ $labels.pod }}' is near memory limit"
+            description: "Memory utilization for container '{{ $labels.container }}' in pod '{{ $labels.pod }}' is at {{ printf \"%.2f\" $value }}% (above 90%) for the last 3 minutes."
+
+        # 4. Service Down / Unreachable
+        - alert: MicroserviceUnavailable
+          expr: sum(up{job=~".*microservice.*"}) by (app) == 0
+          for: 1m
+          labels:
+            severity: critical
+            tier: availability
+          annotations:
+            summary: "Service '{{ $labels.app }}' is down"
+            description: "No active endpoints are running or registered for the application '{{ $labels.app }}'."

@@ -1,0 +1,20 @@
+{
+  "name": "consumer-app",
+  "version": "1.0.0",
+  "description": "Consumer App Microservice",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "jest --passWithNoTests",
+    "lint": "eslint src/**/*.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "prom-client": "^15.1.2"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "jest": "^29.7.0",
+    "supertest": "^6.3.4"
+  }
+}

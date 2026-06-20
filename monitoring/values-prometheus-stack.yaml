@@ -1,0 +1,60 @@
+# values-prometheus-stack.yaml - Custom configuration for Prometheus and Grafana Stack
+
+prometheus:
+  prometheusSpec:
+    serviceMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelector:
+      matchLabels:
+        release: prometheus
+    ruleSelectorNilUsesHelmValues: false
+    ruleSelector:
+      matchLabels:
+        role: alert-rules
+
+grafana:
+  enabled: true
+  adminPassword: "admin-sre-secure"
+  persistence:
+    enabled: true
+    size: 10Gi
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: 'default'
+          orgId: 1
+          folder: ''
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/default
+
+  dashboards:
+    default:
+      microservices-dashboard:
+        # Load from local custom JSON model defined below
+        json: |
+          {{- .Files.Get "grafana-dashboards/microservices-dashboard.json" | nindent 10 }}
+
+alertmanager:
+  config:
+    global:
+      resolve_timeout: 5m
+    route:
+      group_by: ['alertname', 'cluster', 'service']
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 12h
+      receiver: 'null'
+      routes:
+        - match:
+            severity: critical
+          receiver: 'sre-slack-alerts'
+    receivers:
+      - name: 'null'
+      - name: 'sre-slack-alerts'
+        slack_configs:
+          - api_url: 'https://hooks.slack.com/services/REPLACE_WITH_YOUR_SLACK_WEBHOOK'
+            channel: '#sre-alerts'
+            send_resolved: true
