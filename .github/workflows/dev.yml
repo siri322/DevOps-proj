@@ -23,5 +23,5 @@ jobs:
     with:
       environment: dev
       image_tag: ${{ inputs.image_tag || github.sha }}
-      deploy: ${{ inputs.deploy == '' && true || inputs.deploy }}
+      deploy: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy || true }}
     secrets: inherit

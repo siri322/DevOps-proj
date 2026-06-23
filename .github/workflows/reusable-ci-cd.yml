@@ -34,6 +34,7 @@ on:
         required: false
       ARGOCD_AUTH_TOKEN:
         required: false
+
 permissions:
   contents: read
   id-token: write
@@ -143,6 +144,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set image registry
+        id: registry
+        run: |
+          if [ -n "$ACR_LOGIN_SERVER" ]; then
+            echo "server=$ACR_LOGIN_SERVER" >> "$GITHUB_OUTPUT"
+          else
+            echo "server=local" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Azure login
         if: ${{ env.AZURE_CLIENT_ID != '' }}
         uses: azure/login@v2
@@ -153,19 +163,19 @@ jobs:
 
       - name: ACR login
         if: ${{ env.ACR_NAME != '' }}
-        run: az acr login --name "${{ secrets.ACR_NAME }}"
+        run: az acr login --name "$ACR_NAME"
 
       - name: Build image
         run: |
           docker build \
             --file services/${{ matrix.service }}/Dockerfile \
-            --tag ${{ secrets.ACR_LOGIN_SERVER || 'local' }}/mobility/${{ matrix.service }}:${{ inputs.image_tag }} \
+            --tag ${{ steps.registry.outputs.server }}/mobility/${{ matrix.service }}:${{ inputs.image_tag }} \
             .
 
       - name: Trivy image scan
         uses: aquasecurity/trivy-action@0.24.0
         with:
-          image-ref: ${{ secrets.ACR_LOGIN_SERVER || 'local' }}/mobility/${{ matrix.service }}:${{ inputs.image_tag }}
+          image-ref: ${{ steps.registry.outputs.server }}/mobility/${{ matrix.service }}:${{ inputs.image_tag }}
           format: sarif
           output: trivy-${{ matrix.service }}.sarif
           severity: CRITICAL,HIGH
@@ -179,7 +189,7 @@ jobs:
 
       - name: Push image to ACR
         if: ${{ env.ACR_LOGIN_SERVER != '' }}
-        run: docker push ${{ secrets.ACR_LOGIN_SERVER }}/mobility/${{ matrix.service }}:${{ inputs.image_tag }}
+        run: docker push ${{ env.ACR_LOGIN_SERVER }}/mobility/${{ matrix.service }}:${{ inputs.image_tag }}
 
   dast:
     name: DAST Baseline
