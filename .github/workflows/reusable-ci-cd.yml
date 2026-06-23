@@ -11,7 +11,7 @@ on:
         description: "Image tag to publish"
         required: false
         type: string
-        default: ${{ github.sha }}
+        default: "latest"
       deploy:
         description: "Deploy through Argo CD after images are published"
         required: false
