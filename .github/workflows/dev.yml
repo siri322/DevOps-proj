@@ -5,11 +5,23 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag to publish"
+        required: false
+        type: string
+        default: ""
+      deploy:
+        description: "Deploy through Argo CD"
+        required: false
+        type: boolean
+        default: true
 
 jobs:
   pipeline:
     uses: ./.github/workflows/reusable-ci-cd.yml
     with:
       environment: dev
-      deploy: true
+      image_tag: ${{ inputs.image_tag || github.sha }}
+      deploy: ${{ inputs.deploy == '' && true || inputs.deploy }}
     secrets: inherit
