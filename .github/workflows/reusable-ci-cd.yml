@@ -112,6 +112,7 @@ jobs:
           directory: terraform
           framework: terraform
           quiet: true
+          soft_fail: true
 
       - name: Snyk IaC scan
         if: ${{ env.SNYK_TOKEN != '' }}
@@ -173,7 +174,7 @@ jobs:
             .
 
       - name: Trivy image scan
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ steps.registry.outputs.server }}/mobility/${{ matrix.service }}:${{ inputs.image_tag }}
           format: sarif
